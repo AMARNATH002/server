@@ -10,6 +10,7 @@ const app = express();
 
 app.use(cors());
 app.use(express.json());
+app.use('/images', express.static('public/images'));
 
 
 mongoose.connect(process.env.MONGODB_URI || 'mongodb+srv://root:root@cluster0.trfqu29.mongodb.net/foodorder')
@@ -63,17 +64,22 @@ const authenticateToken = (req, res, next) => {
 };
 
 
-const foodItems = [
-  { id: 1, name: 'Biriyani', price: 250, image: '/src/assets/biriyani.jpeg', category: 'rice' },
-  { id: 2, name: 'Chicken Fried Rice', price: 180, image: '/src/assets/chicken fried rice.jpeg', category: 'rice' },
-  { id: 3, name: 'Egg Rice', price: 120, image: '/src/assets/egg rice.jpeg', category: 'rice' },
-  { id: 4, name: 'Dosa', price: 80, image: '/src/assets/dosa.jpeg', category: 'south indian' },
-  { id: 5, name: 'Idly', price: 60, image: '/src/assets/idly.jpeg', category: 'south indian' },
-  { id: 6, name: 'Chapati', price: 40, image: '/src/assets/chappati.jpeg', category: 'bread' },
-  { id: 7, name: 'Parota', price: 50, image: '/src/assets/parota.jpeg', category: 'bread' },
-  { id: 8, name: 'Beef Curry', price: 200, image: '/src/assets/beef curry.jpeg', category: 'curry' },
-  { id: 9, name: 'Mutton Curry', price: 280, image: '/src/assets/mutton curry.jpeg', category: 'curry' },
-  { id: 10, name: 'Leg Piece', price: 150, image: '/src/assets/leg piece.jpeg', category: 'chicken' }
+// Helper function to get base URL
+const getBaseUrl = (req) => {
+  return `${req.protocol}://${req.get('host')}`;
+};
+
+const foodItemsData = [
+  { id: 1, name: 'Biriyani', price: 250, image: 'biriyani.jpeg', category: 'rice' },
+  { id: 2, name: 'Chicken Fried Rice', price: 180, image: 'chicken fried rice.jpeg', category: 'rice' },
+  { id: 3, name: 'Egg Rice', price: 120, image: 'egg rice.jpeg', category: 'rice' },
+  { id: 4, name: 'Dosa', price: 80, image: 'dosa.jpeg', category: 'south indian' },
+  { id: 5, name: 'Idly', price: 60, image: 'idly.jpeg', category: 'south indian' },
+  { id: 6, name: 'Chapati', price: 40, image: 'chappati.jpeg', category: 'bread' },
+  { id: 7, name: 'Parota', price: 50, image: 'parota.jpeg', category: 'bread' },
+  { id: 8, name: 'Beef Curry', price: 200, image: 'beef curry.jpeg', category: 'curry' },
+  { id: 9, name: 'Mutton Curry', price: 280, image: 'mutton curry.jpeg', category: 'curry' },
+  { id: 10, name: 'Leg Piece', price: 150, image: 'leg piece.jpeg', category: 'chicken' }
 ];
 
 
@@ -167,7 +173,12 @@ app.post('/api/login', async (req, res) => {
 
 
 app.get('/api/foods', (req, res) => {
-  res.json(foodItems);
+  const baseUrl = getBaseUrl(req);
+  const foodItemsWithUrls = foodItemsData.map(item => ({
+    ...item,
+    image: `${baseUrl}/images/${item.image}`
+  }));
+  res.json(foodItemsWithUrls);
 });
 
 
