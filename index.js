@@ -38,7 +38,7 @@ const orderSchema = new mongoose.Schema({
     image: { type: String, required: true }
   }],
   totalAmount: { type: Number, required: true },
-  status: { type: String, default: 'pending', enum: ['pending', 'confirmed', 'preparing', 'delivered'] },
+  status: { type: String, default: 'pending', enum: ['pending', 'confirmed', 'preparing', 'delivered', 'cancelled'] },
   deliveryAddress: { type: String, required: true },
   phone: { type: String, required: true }
 }, { timestamps: true });
@@ -219,6 +219,40 @@ app.get('/api/orders', authenticateToken, async (req, res) => {
   try {
     const orders = await Order.find({ userId: req.user.userId }).sort({ createdAt: -1 });
     res.json(orders);
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// Cancel order
+app.put('/api/orders/:orderId/cancel', authenticateToken, async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    
+    // Find the order and verify it belongs to the user
+    const order = await Order.findOne({ _id: orderId, userId: req.user.userId });
+    
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found' });
+    }
+    
+    // Check if order can be cancelled (only pending and confirmed orders can be cancelled)
+    if (order.status === 'delivered') {
+      return res.status(400).json({ message: 'Cannot cancel delivered orders' });
+    }
+    
+    if (order.status === 'cancelled') {
+      return res.status(400).json({ message: 'Order is already cancelled' });
+    }
+    
+    // Update order status to cancelled
+    order.status = 'cancelled';
+    await order.save();
+    
+    res.json({
+      message: 'Order cancelled successfully',
+      order
+    });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
