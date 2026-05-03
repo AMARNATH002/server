@@ -3,14 +3,29 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 require('dotenv').config();
 
 const app = express();
 
-
 app.use(cors());
 app.use(express.json());
 app.use('/images', express.static('public/images'));
+
+// Multer setup for image uploads
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const dir = 'public/images';
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => {
+    cb(null, Date.now() + path.extname(file.originalname));
+  }
+});
+const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
 
 
 mongoose.connect(process.env.MONGODB_URI || 'mongodb+srv://root:root@cluster0.trfqu29.mongodb.net/foodorder')
@@ -23,10 +38,21 @@ const userSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true },
   phone: { type: String, required: true },
-  address: { type: String, required: true }
+  address: { type: String, required: true },
+  role: { type: String, enum: ['user', 'admin'], default: 'user' }
 }, { timestamps: true });
 
 const User = mongoose.model('User', userSchema);
+
+// FoodItem model for admin-uploaded foods
+const foodItemSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  price: { type: Number, required: true },
+  category: { type: String, required: true },
+  image: { type: String, required: true }
+}, { timestamps: true });
+
+const FoodItem = mongoose.model('FoodItem', foodItemSchema);
 
 
 const orderSchema = new mongoose.Schema({
@@ -49,19 +75,67 @@ const Order = mongoose.model('Order', orderSchema);
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
-
-  if (!token) {
-    return res.status(401).json({ message: 'Access token required' });
-  }
-
+  if (!token) return res.status(401).json({ message: 'Access token required' });
   jwt.verify(token, process.env.JWT_SECRET || 'your_jwt_secret_key_here', (err, user) => {
-    if (err) {
-      return res.status(403).json({ message: 'Invalid token' });
-    }
+    if (err) return res.status(403).json({ message: 'Invalid token' });
     req.user = user;
     next();
   });
 };
+
+const requireAdmin = (req, res, next) => {
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ message: 'Admin access required' });
+  }
+  next();
+};
+
+// Contact Info model — stored in DB so admin can edit from UI
+const contactInfoSchema = new mongoose.Schema({
+  email: { type: String, default: 'info@foodorder.com' },
+  phone: { type: String, default: '+91 98765 43210' },
+  address: { type: String, default: '123 Food Street, Chennai, Tamil Nadu' }
+});
+const ContactInfo = mongoose.model('ContactInfo', contactInfoSchema);
+
+// GET contact info (public)
+app.get('/api/contact-info', async (req, res) => {
+  try {
+    let info = await ContactInfo.findOne();
+    if (!info) {
+      info = await ContactInfo.create({});
+    }
+    res.json(info);
+  } catch (err) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// PUT contact info — admin only
+app.put('/api/contact-info', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { email, phone, address } = req.body;
+    let info = await ContactInfo.findOne();
+    if (!info) info = new ContactInfo({});
+    if (email) info.email = email;
+    if (phone) info.phone = phone;
+    if (address) info.address = address;
+    await info.save();
+    res.json({ message: 'Contact info updated', info });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// POST contact form — simple (no email sending, just success response)
+app.post('/api/contact', async (req, res) => {
+  const { name, email, subject, message } = req.body;
+  if (!name || !email || !subject || !message) {
+    return res.status(400).json({ message: 'All fields are required' });
+  }
+  // You can add email sending here later if needed
+  res.json({ message: 'Message received! We will get back to you soon.' });
+});
 
 
 // Helper function to get base URL
@@ -85,32 +159,16 @@ const foodItemsData = [
 
 app.post('/api/register', async (req, res) => {
   try {
-    const { name, email, password, phone, address } = req.body;
-
-   
+    const { name, email, password, phone, address, role } = req.body;
     const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      return res.status(400).json({ message: 'User already exists' });
-    }
+    if (existingUser) return res.status(400).json({ message: 'User already exists' });
 
-    
-    const saltRounds = 10;
-    const hashedPassword = await bcrypt.hash(password, saltRounds);
-
-    
-    const user = new User({
-      name,
-      email,
-      password: hashedPassword,
-      phone,
-      address
-    });
-
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const user = new User({ name, email, password: hashedPassword, phone, address, role: role || 'user' });
     await user.save();
 
-   
     const token = jwt.sign(
-      { userId: user._id, email: user.email },
+      { userId: user._id, email: user.email, role: user.role },
       process.env.JWT_SECRET || 'your_jwt_secret_key_here',
       { expiresIn: '24h' }
     );
@@ -118,13 +176,7 @@ app.post('/api/register', async (req, res) => {
     res.status(201).json({
       message: 'User registered successfully',
       token,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        phone: user.phone,
-        address: user.address
-      }
+      user: { id: user._id, name: user.name, email: user.email, phone: user.phone, address: user.address, role: user.role }
     });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -135,22 +187,14 @@ app.post('/api/register', async (req, res) => {
 app.post('/api/login', async (req, res) => {
   try {
     const { email, password } = req.body;
-
-   
     const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(400).json({ message: 'Invalid credentials' });
-    }
+    if (!user) return res.status(400).json({ message: 'Invalid credentials' });
 
-    
     const isPasswordValid = await bcrypt.compare(password, user.password);
-    if (!isPasswordValid) {
-      return res.status(400).json({ message: 'Invalid credentials' });
-    }
+    if (!isPasswordValid) return res.status(400).json({ message: 'Invalid credentials' });
 
-    
     const token = jwt.sign(
-      { userId: user._id, email: user.email },
+      { userId: user._id, email: user.email, role: user.role },
       process.env.JWT_SECRET || 'your_jwt_secret_key_here',
       { expiresIn: '24h' }
     );
@@ -158,13 +202,7 @@ app.post('/api/login', async (req, res) => {
     res.json({
       message: 'Login successful',
       token,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        phone: user.phone,
-        address: user.address
-      }
+      user: { id: user._id, name: user.name, email: user.email, phone: user.phone, address: user.address, role: user.role }
     });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -172,22 +210,73 @@ app.post('/api/login', async (req, res) => {
 });
 
 
-app.get('/api/foods', (req, res) => {
+app.get('/api/foods', async (req, res) => {
   const baseUrl = getBaseUrl(req);
-  const foodItemsWithUrls = foodItemsData.map(item => ({
+  const hardcoded = foodItemsData.map(item => ({
     ...item,
     image: `${baseUrl}/images/${item.image}`
   }));
-  res.json(foodItemsWithUrls);
+  try {
+    const dbFoods = await FoodItem.find();
+    const dbFoodsFormatted = dbFoods.map(item => ({
+      id: item._id,
+      name: item.name,
+      price: item.price,
+      category: item.category,
+      image: `${baseUrl}/images/${item.image}`
+    }));
+    res.json([...hardcoded, ...dbFoodsFormatted]);
+  } catch {
+    res.json(hardcoded);
+  }
 });
 
-
-app.get('/api/foods/:id', (req, res) => {
-  const food = foodItems.find(item => item.id === parseInt(req.params.id));
-  if (!food) {
-    return res.status(404).json({ message: 'Food item not found' });
+// Admin: Add food item with image upload
+app.post('/api/admin/foods', authenticateToken, requireAdmin, upload.single('image'), async (req, res) => {
+  try {
+    const { name, price, category } = req.body;
+    if (!req.file) return res.status(400).json({ message: 'Image is required' });
+    const food = new FoodItem({ name, price: Number(price), category, image: req.file.filename });
+    await food.save();
+    const baseUrl = getBaseUrl(req);
+    res.status(201).json({ ...food.toObject(), image: `${baseUrl}/images/${food.image}` });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
   }
-  res.json(food);
+});
+
+// Admin: Delete food item
+app.delete('/api/admin/foods/:id', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const food = await FoodItem.findByIdAndDelete(req.params.id);
+    if (!food) return res.status(404).json({ message: 'Food not found' });
+    const filePath = `public/images/${food.image}`;
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    res.json({ message: 'Food deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// Admin: Get all users
+app.get('/api/admin/users', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const users = await User.find().select('-password').sort({ createdAt: -1 });
+    res.json(users);
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// Admin: Delete a user
+app.delete('/api/admin/users/:id', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const user = await User.findByIdAndDelete(req.params.id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    res.json({ message: 'User deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
 });
 
 
@@ -262,10 +351,46 @@ app.put('/api/orders/:orderId/cancel', authenticateToken, async (req, res) => {
 app.get('/api/profile', authenticateToken, async (req, res) => {
   try {
     const user = await User.findById(req.user.userId).select('-password');
-    if (!user) {
-      return res.status(404).json({ message: 'User not found' });
-    }
+    if (!user) return res.status(404).json({ message: 'User not found' });
     res.json(user);
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// Update user address
+app.put('/api/profile/address', authenticateToken, async (req, res) => {
+  try {
+    const { address } = req.body;
+    if (!address || address.trim().length < 10) {
+      return res.status(400).json({ message: 'Please enter a valid address (min 10 chars)' });
+    }
+    const user = await User.findByIdAndUpdate(
+      req.user.userId,
+      { address },
+      { new: true }
+    ).select('-password');
+    res.json({ message: 'Address updated', user });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// Update user profile (name, email, phone)
+app.put('/api/profile', authenticateToken, async (req, res) => {
+  try {
+    const { name, email, phone, address } = req.body;
+    // Check email not taken by another user
+    if (email) {
+      const existing = await User.findOne({ email, _id: { $ne: req.user.userId } });
+      if (existing) return res.status(400).json({ message: 'Email already in use' });
+    }
+    const updated = await User.findByIdAndUpdate(
+      req.user.userId,
+      { ...(name && { name }), ...(email && { email }), ...(phone && { phone }), ...(address && { address }) },
+      { new: true }
+    ).select('-password');
+    res.json({ message: 'Profile updated', user: updated });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
