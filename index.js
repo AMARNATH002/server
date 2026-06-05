@@ -35,7 +35,7 @@ const storage = multer.diskStorage({
 const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
 
 
-mongoose.connect(process.env.MONGODB_URI || 'mongodb+srv://root:root@cluster0.trfqu29.mongodb.net/foodorder')
+mongoose.connect(process.env.MONGODB_URI)
   .then(() => console.log('Connected to MongoDB Atlas'))
   .catch(err => console.error('MongoDB connection error:', err));
 
@@ -83,7 +83,7 @@ const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
   if (!token) return res.status(401).json({ message: 'Access token required' });
-  jwt.verify(token, process.env.JWT_SECRET || 'your_jwt_secret_key_here', (err, user) => {
+  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
     if (err) return res.status(403).json({ message: 'Invalid token' });
     req.user = user;
     next();
@@ -165,7 +165,7 @@ app.post('/api/register', async (req, res) => {
 
     const token = jwt.sign(
       { userId: user._id, email: user.email, role: user.role },
-      process.env.JWT_SECRET || 'your_jwt_secret_key_here',
+      process.env.JWT_SECRET,
       { expiresIn: '24h' }
     );
 
@@ -191,7 +191,7 @@ app.post('/api/login', async (req, res) => {
 
     const token = jwt.sign(
       { userId: user._id, email: user.email, role: user.role },
-      process.env.JWT_SECRET || 'your_jwt_secret_key_here',
+      process.env.JWT_SECRET,
       { expiresIn: '24h' }
     );
 
