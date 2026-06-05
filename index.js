@@ -10,7 +10,14 @@ require('dotenv').config();
 
 const app = express();
 
-app.use(cors());
+app.use(cors({
+  origin: [
+    'http://localhost:5173',
+    'https://backend-8j7e.onrender.com',
+    /\.vercel\.app$/   // allows any vercel.app subdomain
+  ],
+  credentials: true
+}));
 app.use(express.json());
 app.use('/images', express.static('public/images'));
 
@@ -143,18 +150,7 @@ const getBaseUrl = (req) => {
   return `${req.protocol}://${req.get('host')}`;
 };
 
-const foodItemsData = [
-  { id: 1, name: 'Biriyani', price: 250, image: 'biriyani.jpeg', category: 'rice' },
-  { id: 2, name: 'Chicken Fried Rice', price: 180, image: 'chicken fried rice.jpeg', category: 'rice' },
-  { id: 3, name: 'Egg Rice', price: 120, image: 'egg rice.jpeg', category: 'rice' },
-  { id: 4, name: 'Dosa', price: 80, image: 'dosa.jpeg', category: 'south indian' },
-  { id: 5, name: 'Idly', price: 60, image: 'idly.jpeg', category: 'south indian' },
-  { id: 6, name: 'Chapati', price: 40, image: 'chappati.jpeg', category: 'bread' },
-  { id: 7, name: 'Parota', price: 50, image: 'parota.jpeg', category: 'bread' },
-  { id: 8, name: 'Beef Curry', price: 200, image: 'beef curry.jpeg', category: 'curry' },
-  { id: 9, name: 'Mutton Curry', price: 280, image: 'mutton curry.jpeg', category: 'curry' },
-  { id: 10, name: 'Leg Piece', price: 150, image: 'leg piece.jpeg', category: 'chicken' }
-];
+
 
 
 app.post('/api/register', async (req, res) => {
@@ -212,10 +208,6 @@ app.post('/api/login', async (req, res) => {
 
 app.get('/api/foods', async (req, res) => {
   const baseUrl = getBaseUrl(req);
-  const hardcoded = foodItemsData.map(item => ({
-    ...item,
-    image: `${baseUrl}/images/${item.image}`
-  }));
   try {
     const dbFoods = await FoodItem.find();
     const dbFoodsFormatted = dbFoods.map(item => ({
@@ -225,9 +217,9 @@ app.get('/api/foods', async (req, res) => {
       category: item.category,
       image: `${baseUrl}/images/${item.image}`
     }));
-    res.json([...hardcoded, ...dbFoodsFormatted]);
+    res.json(dbFoodsFormatted);
   } catch {
-    res.json(hardcoded);
+    res.json([]);
   }
 });
 
