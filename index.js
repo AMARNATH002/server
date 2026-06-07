@@ -146,8 +146,8 @@ app.post('/api/contact', async (req, res) => {
 
 
 // Helper function to get base URL
-const getBaseUrl = (req) => {
-  return `${req.protocol}://${req.get('host')}`;
+const getBaseUrl = () => {
+  return process.env.BACKEND_URL || `http://localhost:${process.env.PORT || 5000}`;
 };
 
 
@@ -207,7 +207,7 @@ app.post('/api/login', async (req, res) => {
 
 
 app.get('/api/foods', async (req, res) => {
-  const baseUrl = getBaseUrl(req);
+  const baseUrl = getBaseUrl();
   try {
     const dbFoods = await FoodItem.find();
     const dbFoodsFormatted = dbFoods.map(item => ({
@@ -230,7 +230,7 @@ app.post('/api/admin/foods', authenticateToken, requireAdmin, upload.single('ima
     if (!req.file) return res.status(400).json({ message: 'Image is required' });
     const food = new FoodItem({ name, price: Number(price), category, image: req.file.filename });
     await food.save();
-    const baseUrl = getBaseUrl(req);
+    const baseUrl = getBaseUrl();
     res.status(201).json({ ...food.toObject(), image: `${baseUrl}/images/${food.image}` });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -245,6 +245,32 @@ app.delete('/api/admin/foods/:id', authenticateToken, requireAdmin, async (req, 
     const filePath = `public/images/${food.image}`;
     if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
     res.json({ message: 'Food deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// Admin: Edit food item
+app.put('/api/admin/foods/:id', authenticateToken, requireAdmin, upload.single('image'), async (req, res) => {
+  try {
+    const { name, price, category } = req.body;
+    const food = await FoodItem.findById(req.params.id);
+    if (!food) return res.status(404).json({ message: 'Food not found' });
+
+    if (name) food.name = name;
+    if (price) food.price = Number(price);
+    if (category) food.category = category;
+
+    // If new image uploaded, delete old one
+    if (req.file) {
+      const oldPath = `public/images/${food.image}`;
+      if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+      food.image = req.file.filename;
+    }
+
+    await food.save();
+    const baseUrl = getBaseUrl();
+    res.json({ ...food.toObject(), id: food._id, image: `${baseUrl}/images/${food.image}` });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
