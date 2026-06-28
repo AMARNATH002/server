@@ -245,6 +245,24 @@ const submitFeedback = async (req, res) => {
   }
 };
 
+// Shop owner hard-deletes an order from their view
+const deleteShopOrder = async (req, res) => {
+  try {
+    const order = await Order.findById(req.params.orderId);
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+
+    const hasItem = order.items.some(
+      (item) => item.shopId && item.shopId.toString() === req.user.userId.toString()
+    );
+    if (!hasItem) return res.status(403).json({ message: 'Unauthorized' });
+
+    await Order.deleteOne({ _id: order._id });
+    res.json({ message: 'Order deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
 module.exports = {
   getShopProfile,
   updateShopProfile,
@@ -257,4 +275,5 @@ module.exports = {
   getShopSales,
   getShopFeedback,
   submitFeedback,
+  deleteShopOrder,
 };

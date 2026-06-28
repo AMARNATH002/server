@@ -19,17 +19,17 @@ const app = express();
 const allowedOrigins = [
   'http://localhost:3000',
   'http://localhost:5173',
-  /\.vercel\.app$/,   // all vercel preview + production deployments
+  /\.vercel\.app$/,  
 ];
 
-// If a custom frontend URL is set in env, add it too
+
 if (process.env.FRONTEND_URL) {
   allowedOrigins.push(process.env.FRONTEND_URL);
 }
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (Postman, server-to-server, curl)
+    
     if (!origin) return callback(null, true);
     const allowed = allowedOrigins.some((o) =>
       o instanceof RegExp ? o.test(origin) : o === origin

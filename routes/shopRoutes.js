@@ -14,6 +14,7 @@ const {
   getShopSales,
   getShopFeedback,
   submitFeedback,
+  deleteShopOrder,
 } = require('../controllers/shopController');
 
 
@@ -28,6 +29,7 @@ router.delete('/foods/:id', authenticateToken, deleteShopFood);
 
 router.get('/orders',                      authenticateToken, getShopOrders);
 router.put('/orders/:orderId/status',      authenticateToken, updateOrderStatus);
+router.delete('/orders/:orderId',          authenticateToken, deleteShopOrder);
 
 
 router.get('/sales', authenticateToken, getShopSales);

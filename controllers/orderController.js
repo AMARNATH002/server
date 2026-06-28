@@ -54,4 +54,25 @@ const cancelOrder = async (req, res) => {
   }
 };
 
-module.exports = { placeOrder, getMyOrders, cancelOrder };
+// Customer deletes (removes) an order from their history — only cancelled orders allowed
+const deleteOrder = async (req, res) => {
+  try {
+    const order = await Order.findOne({
+      _id: req.params.orderId,
+      userId: req.user.userId,
+    });
+
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+
+    if (order.status !== 'cancelled' && order.status !== 'delivered') {
+      return res.status(400).json({ message: 'You can only delete cancelled or delivered orders' });
+    }
+
+    await Order.deleteOne({ _id: order._id });
+    res.json({ message: 'Order deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+module.exports = { placeOrder, getMyOrders, cancelOrder, deleteOrder };
