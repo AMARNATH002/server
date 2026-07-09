@@ -1,14 +1,9 @@
-const fs = require('fs');
 const FoodItem = require('../models/FoodItem');
 const FoodCategory = require('../models/FoodCategory');
 const FoodRating = require('../models/FoodRating');
 
-const getBaseUrl = () =>
-  process.env.BACKEND_URL || `http://localhost:${process.env.PORT || 5000}`;
-
 
 const getAllFoods = async (req, res) => {
-  const baseUrl = getBaseUrl();
   try {
     const dbFoods = await FoodItem.find().populate(
       'shopId',
@@ -17,7 +12,6 @@ const getAllFoods = async (req, res) => {
 
     const allRatings = await FoodRating.find();
 
-    
     const ratingMap = {};
     allRatings.forEach((r) => {
       const key = r.foodId.toString();
@@ -44,7 +38,8 @@ const getAllFoods = async (req, res) => {
         name:        item.name,
         price:       item.price,
         category:    item.category,
-        image:       `${baseUrl}/images/${item.image}`,
+        // image is now stored as a full Cloudinary URL — use it directly
+        image:       item.image,
         shopName:    shop.shopName || shop.name || 'Tomato Kitchen',
         city:        shop.city    || 'Chennai',
         pincode:     shop.pincode || '600001',

@@ -1,11 +1,22 @@
-const fs = require('fs');
 const FoodItem = require('../models/FoodItem');
 const Order = require('../models/Order');
 const Feedback = require('../models/Feedback');
 const User = require('../models/User');
+const { cloudinary } = require('../utils/upload');
 
-const getBaseUrl = () =>
-  process.env.BACKEND_URL || `http://localhost:${process.env.PORT || 5000}`;
+// Extract Cloudinary public_id from a stored URL or filename
+// Stored value can be either a full https://res.cloudinary.com/... URL
+// or a legacy bare filename (e.g. "1780635539297.jpeg")
+const getPublicId = (imageValue) => {
+  if (!imageValue) return null;
+  // If it looks like a Cloudinary URL, extract the public_id
+  if (imageValue.startsWith('http')) {
+    // e.g. https://res.cloudinary.com/<cloud>/image/upload/v123/restaurent-food-app/abc.jpg
+    const match = imageValue.match(/\/upload\/(?:v\d+\/)?(.+?)(?:\.\w+)?$/);
+    return match ? match[1] : null;
+  }
+  return null; // legacy local filename — nothing to delete on Cloudinary
+};
 
 const getShopProfile = async (req, res) => {
   try {
@@ -23,7 +34,6 @@ const getShopProfile = async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
-
 
 const updateShopProfile = async (req, res) => {
   try {
@@ -53,9 +63,7 @@ const updateShopProfile = async (req, res) => {
   }
 };
 
-
 const getShopFoods = async (req, res) => {
-  const baseUrl = getBaseUrl();
   try {
     const foods = await FoodItem.find({ shopId: req.user.userId });
     const formatted = foods.map((item) => ({
@@ -63,7 +71,8 @@ const getShopFoods = async (req, res) => {
       name:     item.name,
       price:    item.price,
       category: item.category,
-      image:    `${baseUrl}/images/${item.image}`,
+      // image is now stored as a full Cloudinary URL
+      image:    item.image,
     }));
     res.json(formatted);
   } catch (error) {
@@ -71,23 +80,22 @@ const getShopFoods = async (req, res) => {
   }
 };
 
-
 const addShopFood = async (req, res) => {
   try {
     const { name, price, category } = req.body;
     if (!req.file) return res.status(400).json({ message: 'Image is required' });
 
+    // multer-storage-cloudinary puts the secure URL in req.file.path
     const food = new FoodItem({
       name,
-      price: Number(price),
+      price:  Number(price),
       category,
-      image:  req.file.filename,
+      image:  req.file.path,   // full Cloudinary URL
       shopId: req.user.userId,
     });
 
     await food.save();
-    const baseUrl = getBaseUrl();
-    res.status(201).json({ ...food.toObject(), id: food._id, image: `${baseUrl}/images/${food.image}` });
+    res.status(201).json({ ...food.toObject(), id: food._id, image: food.image });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
@@ -104,37 +112,37 @@ const updateShopFood = async (req, res) => {
     if (category) food.category = category;
 
     if (req.file) {
-      const oldPath = `public/images/${food.image}`;
-      if (fs.existsSync(oldPath)) {
-        try { fs.unlinkSync(oldPath); } catch (e) { /* ignore */ }
+      // Delete old image from Cloudinary (best-effort)
+      const oldPublicId = getPublicId(food.image);
+      if (oldPublicId) {
+        try { await cloudinary.uploader.destroy(oldPublicId); } catch (e) { /* ignore */ }
       }
-      food.image = req.file.filename;
+      food.image = req.file.path; // new Cloudinary URL
     }
 
     await food.save();
-    const baseUrl = getBaseUrl();
-    res.json({ ...food.toObject(), id: food._id, image: `${baseUrl}/images/${food.image}` });
+    res.json({ ...food.toObject(), id: food._id, image: food.image });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
-
 
 const deleteShopFood = async (req, res) => {
   try {
     const food = await FoodItem.findOneAndDelete({ _id: req.params.id, shopId: req.user.userId });
     if (!food) return res.status(404).json({ message: 'Food item not found or unauthorized' });
 
-    const filePath = `public/images/${food.image}`;
-    if (fs.existsSync(filePath)) {
-      try { fs.unlinkSync(filePath); } catch (e) { /* ignore */ }
+    // Delete image from Cloudinary (best-effort)
+    const publicId = getPublicId(food.image);
+    if (publicId) {
+      try { await cloudinary.uploader.destroy(publicId); } catch (e) { /* ignore */ }
     }
+
     res.json({ message: 'Food item deleted successfully' });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
-
 
 const getShopOrders = async (req, res) => {
   try {
@@ -156,7 +164,6 @@ const getShopOrders = async (req, res) => {
   }
 };
 
-
 const updateOrderStatus = async (req, res) => {
   try {
     const { status } = req.body;
@@ -176,7 +183,6 @@ const updateOrderStatus = async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
-
 
 const getShopSales = async (req, res) => {
   try {
@@ -211,7 +217,6 @@ const getShopSales = async (req, res) => {
   }
 };
 
-
 const getShopFeedback = async (req, res) => {
   try {
     const feedbacks = await Feedback.find({ shopId: req.user.userId })
@@ -222,7 +227,6 @@ const getShopFeedback = async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
-
 
 const submitFeedback = async (req, res) => {
   try {
@@ -245,7 +249,6 @@ const submitFeedback = async (req, res) => {
   }
 };
 
-// Shop owner hard-deletes an order from their view
 const deleteShopOrder = async (req, res) => {
   try {
     const order = await Order.findById(req.params.orderId);
