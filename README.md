@@ -140,7 +140,7 @@ Set all environment variables in the Render dashboard under the Environment tab.
 ## Related
 
 - Frontend Repo: [AMARNATH002/client](https://github.com/AMARNATH002/client)
-- Live App: [spiceserve.vercel.app](https://spiceserve.vercel.app)
+- Live App: [rapidmeal.vercel.app](https://rapidmeal.vercel.app)
 
 ## Author
 
