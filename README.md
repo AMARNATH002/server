@@ -1,17 +1,17 @@
-# Tomato Food App — Frontend
+# Tomato Food App — Backend
 
-A React-based restaurant food ordering application built with Vite, featuring a Voice Assistant, multi-role dashboards, and real-time order tracking.
+A Node.js + Express REST API for the Tomato Restaurant Food Ordering App with JWT authentication, MongoDB Atlas, and Cloudinary image storage.
 
 ## Features
 
-- User authentication (login / register)
-- Browse food items with search and category filter
-- Voice Assistant — hands-free ordering using Web Speech API
-- Add items to cart and place orders
-- Order history with real-time status tracking
-- Shop Owner dashboard — manage foods, orders, sales, feedback
+- User authentication with JWT (register / login)
+- Multi-role system — Customer, Shop Owner, Admin
+- Food item management with Cloudinary image upload
+- Order placement and status tracking
+- Shop owner dashboard — orders, sales reports, feedback
 - Admin panel — manage users, foods, voice command categories
-- Responsive design with custom CSS
+- Voice command category management
+- Contact info management
 
 ## Getting Started
 
@@ -19,15 +19,16 @@ A React-based restaurant food ordering application built with Vite, featuring a 
 
 - Node.js (v16 or higher)
 - npm
-- Backend server running (see [AMARNATH002/server](https://github.com/AMARNATH002/server))
+- MongoDB Atlas account
+- Cloudinary account
 
 ### Installation
 
 1. Clone the repository:
 
 ```bash
-git clone https://github.com/AMARNATH002/client.git
-cd client
+git clone https://github.com/AMARNATH002/server.git
+cd server
 ```
 
 2. Install dependencies:
@@ -36,101 +37,110 @@ cd client
 npm install
 ```
 
-3. Create a `.env` file:
+3. Create a `.env` file (use `.env.example` as reference):
 
 ```bash
-VITE_API_BASE_URL=http://localhost:5000
+cp .env.example .env
 ```
 
-4. Start the development server:
+4. Fill in your environment variables in `.env`
+
+5. Start the development server:
 
 ```bash
 npm run dev
 ```
 
-Open [http://localhost:5173](http://localhost:5173) to view it in the browser.
+Server runs on `http://localhost:5000`
 
 ## Available Scripts
 
-- `npm run dev` - Runs the app in development mode
-- `npm run build` - Builds the app for production
-- `npm run preview` - Preview the production build
-- `npm run lint` - Run ESLint
+- `npm start` - Runs the server in production mode
+- `npm run dev` - Runs the server with nodemon (auto-restart)
 
 ## Technologies Used
 
-- React 18 (Vite)
-- React Router DOM
-- Axios
-- Web Speech API (Voice Assistant)
-- CSS (custom styling)
+- Node.js
+- Express.js
+- MongoDB Atlas + Mongoose
+- JWT (jsonwebtoken)
+- bcrypt
+- Multer + Cloudinary
+- dotenv
+- CORS
 
 ## Environment Variables
 
-```
-VITE_API_BASE_URL=http://localhost:5000
-```
+See `.env.example` for all required variables:
 
-For production, set `VITE_API_BASE_URL` to your Render backend URL in the Vercel dashboard.
+```
+MONGODB_URI=
+JWT_SECRET=
+PORT=5000
+CLOUDINARY_CLOUD_NAME=
+CLOUDINARY_API_KEY=
+CLOUDINARY_API_SECRET=
+ADMIN_EMAIL=
+ADMIN_PASSWORD=
+ADMIN_NAME=
+FRONTEND_URL=
+```
 
 ## Project Structure
 
 ```
-src/
-├── components/
-│   ├── Navbar.jsx                    # Top navigation bar
-│   ├── ProductCard.jsx               # Food item card with ratings
-│   ├── VoiceAssistantAdvanced.jsx    # Voice command system
-│   └── SpeechOverlay.jsx             # Floating transcript toast
-├── App.jsx                           # Root component, routing + state
-├── Home.jsx                          # Food listing, search, filter
-├── Mycart.jsx                        # Shopping cart
-├── Orders.jsx                        # Order history
-├── OrderSuccess.jsx                  # Order confirmation
-├── ShopOwnerPanel.jsx                # Shop owner dashboard
-├── AdminPanel.jsx                    # Admin dashboard
-├── About.jsx                         # About page
-├── Contact.jsx                       # Contact page
-├── AllUsers.jsx                      # Admin users list
-└── config.js                         # API base URL config
+server/
+├── config/
+│   └── db.js               # MongoDB connection + admin seed
+├── controllers/
+│   ├── authController.js
+│   ├── foodController.js
+│   ├── orderController.js
+│   ├── profileController.js
+│   ├── shopController.js
+│   ├── adminController.js
+│   └── contactController.js
+├── middleware/
+│   └── auth.js             # JWT verification + role check
+├── models/
+│   ├── User.js
+│   ├── FoodItem.js
+│   ├── Order.js
+│   ├── FoodRating.js
+│   ├── FoodCategory.js
+│   ├── Feedback.js
+│   └── ContactInfo.js
+├── routes/
+│   ├── authRoutes.js
+│   ├── foodRoutes.js
+│   ├── categoryRoutes.js
+│   ├── orderRoutes.js
+│   ├── profileRoutes.js
+│   ├── shopRoutes.js
+│   ├── adminRoutes.js
+│   └── contactRoutes.js
+├── utils/
+│   └── upload.js           # Multer + Cloudinary storage config
+├── .env.example
+├── index.js                # App setup + route wiring
+└── server.js               # Entry point
 ```
 
-## Voice Assistant
+## API Base URL
 
-The Voice Assistant uses the browser's built-in Web Speech API — no external service needed. Works on Chrome and Edge.
-
-**How to use:**
-1. Click **Enable Voice Assistant** on the home page
-2. Say **"ON MIC"** to start listening
-3. Speak a command
-4. Say **"OFF MIC"** to stop
-
-**Example commands:**
-- `"Search biryani"` — search foods
-- `"Add biryani to cart"` — add to cart directly
-- `"Go to cart"` — navigate to cart
-- `"My orders"` — go to orders page
-- `"Clear cart"` — empty the cart
-- Say any category name to filter the menu
-
-## User Roles
-
-| Role | Access |
-|------|--------|
-| Customer | Browse, cart, orders, voice assistant |
-| Shop Owner | Shop dashboard, food management, sales reports |
-| Admin | User management, food management, voice command categories |
+**Production:** `https://backend-8j7e.onrender.com`  
+**Local:** `http://localhost:5000`
 
 ## Deployment
 
-Deployed on **Vercel** — auto-deploys on every push to `main` branch.
+Deployed on **Render** — auto-deploys on every push to `main` branch.
 
-Set `VITE_API_BASE_URL` in Vercel → Settings → Environment Variables.
+Set all environment variables in the Render dashboard under the Environment tab.
 
 ## Related
 
-- Backend Repo: [AMARNATH002/server](https://github.com/AMARNATH002/server)
-- Live App: [rapidmeal.vercel.app](https://rapidmeal.vercel.app)
+- Frontend Repo: [AMARNATH002/client](https://github.com/AMARNATH002/client)
+- Live App: [spiceserve.vercel.app](https://spiceserve.vercel.app)
 
 ## Author
 
